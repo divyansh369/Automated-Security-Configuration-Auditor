@@ -1,39 +1,89 @@
-import subprocess
+import subprocess,json,socket,datetime
 
-def check_file_permissions(file_path):
-    """Check the permissions of /etc/shadow file."""
+def check_file_permissions(file_path,expected_permissions):
+    """Check the permissions of a file with better error handling."""
+    
     result = subprocess.run(["stat","-c","%a",f"{file_path}"], capture_output=True, text=True)
     permissions = result.stdout.strip()
-    return permissions in ["640", "600"] ,permissions
+    return permissions in expected_permissions, permissions
 
-def check_config(search_string,file_path,default_value):
-    """Check SSH MaxAuthTries setting."""
-
+def check_config(search_string, file_path, expected_comparison, operator):
     try:
         result = subprocess.run(
-            ["grep",search_string,file_path],
+            ["grep", search_string, file_path],
             capture_output=True,
             text=True,
             check=True
         )
-        check_config = result.stdout.split()[1]
-        return int(check_config) <= default_value, check_config
+        config_value = result.stdout.split()[1]
+        try:
+            numeric_value = int(config_value)
+            if operator == "max":
+                return numeric_value <= expected_comparison, numeric_value
+            elif operator == "min":
+                return numeric_value >= expected_comparison, numeric_value
+            elif operator == "equal":
+                return numeric_value == expected_comparison, numeric_value
+            else:
+                return False, f"Unknown operator: {operator}"
+        except ValueError:
+            return False, f"Non-numeric value found for {search_string}: {config_value}"
     except FileNotFoundError:
-        return f"{file_path} file not found."
+        return False, f"{file_path} not found."
     except subprocess.CalledProcessError as e:
         if e.returncode == 1:
-            return f"{search_string} not found in {file_path}."
+            return False, f"{search_string} not found in {file_path}."
         else:
-            return f"Error executing grep with return code {e.returncode} : {e}"
+            return False, f"Grep failed with return code {e.returncode}: {e}"
 
-# Run the check
-print("\n========== SECURITY CHECKS ===========\n")
+def run_security_checks():
+    """Run all security checks and return formatted results."""
 
-status,value = check_file_permissions('/etc/shadow')
-print(f"Shadow Permission : {'PASS' if status else 'FAIL'} (value: {value})")
+    CHECKS = [
+        {"name":"Shadow File Permissions","type":"file_permission","file":"/etc/shadow","expected": ["640","600"]},
+        {"name":"SSH MaxAuthTries","type":"config_value","file":"/etc/ssh/sshd_config","search_string":"MaxAuthTries","expected": 4,"operator":"max"},
+        {"name":"Password Maximum Days","type":"config_value","file":"/etc/login.defs","search_string":"^PASS_MAX_DAYS","expected": 90,"operator":"max"},
+        {"name":"Password Minimum Days","type":"config_value","file":"/etc/login.defs","search_string":"^PASS_MIN_DAYS", "expected": 1,"operator":"min"},
+        {"name":"Password Warning Age","type":"config_value","file":"/etc/login.defs","search_string":"^PASS_WARN_AGE", "expected": 7,"operator":"min"}
+    ]
 
-status,value = check_config(search_string="MaxAuthTries",file_path="/etc/ssh/sshd_config",default_value=4)
-print(f"SSH MaxAuthTries : {'PASS' if status else 'FAIL'} (value: {value})")
+    results = []
+    for check in CHECKS:
+        if check["type"] == "file_permission":
+            status,value = check_file_permissions(check["file"],check["expected"])
+        elif check["type"] == "config_value":
+            status,value = check_config(
+                check["search_string"],
+                check["file"],
+                check["expected"],
+                check["operator"]
+            )
+        results.append({
+            "name":check["name"],
+            "status":status,
+            "expected":check["expected"],
+            "actual_value":value,
+        })
+    
+    report_metadata = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "host": socket.gethostname(),
+        "result": results
+    }
 
-status,value = check_config(search_string="^PASS_MAX_DAYS",file_path="/etc/login.defs",default_value=90)
-print(f"Password Maximum Days : {'PASS' if status else 'FAIL'} (value: {value})")
+    with open("security_audit_report.json","w") as f:
+        json.dump(report_metadata,f,indent=2)
+
+    return results
+
+if __name__ == "__main__":
+    result = run_security_checks()
+    for r in result:
+        status = "✅ PASS" if r["status"] else "❌ FAIL"
+        print(f"{r['name']:<30} {status} (Actual: {r['actual_value']}, Expected: {r['expected']})")
+
+    pass_cnt = sum(1 for r in result if r["status"] == True)
+    fail_cnt = sum(1 for r in result if r["status"] == False)
+
+    print("="*50)
+    print(f"SUMMARY: {pass_cnt} Passed, {fail_cnt} Failed")
