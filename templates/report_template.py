@@ -1,45 +1,137 @@
-import json 
+import json, webbrowser
 
 def generate_html_report(result, host, timestamp, machine):
+    total = len(result)
+    passed = sum(1 for r in result if r["status"] == "PASS" or r["status"] == True)
+    failed = total - passed
+    score = round((passed / total) * 100, 2)
+
+    # Compliance level (badge color)
+    if score >= 80:
+        level = "🟢 High Compliance"
+        badge_color = "#4CAF50"
+    elif score >= 50:
+        level = "🟡 Moderate Compliance"
+        badge_color = "#FFC107"
+    else:
+        level = "🔴 Low Compliance"
+        badge_color = "#F44336"
+
     html = f"""
-        <html>
-        <head>
-            <title>Security Audit Report</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    margin: 20px;
-                }}
-                h1 {{
-                    text-align: center;
-                    color: #333;
-                }}
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 20px;
-                }}
-                th, td {{
-                    border: 1px solid #ccc;
-                    padding: 10px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f2f2f2;
-                }}
-                .PASS {{
-                    background-color: #c8e6c9;
-                }}
-                .FAIL {{
-                    background-color: #ffcdd2;
-                }}
-            </style>
-        </head>
-        <body>
-            <h1>System Security Audit Report</h1>
-            <p><b>Hostname:</b> {host}</p>
-            <p><b>Timestamp:</b> {timestamp}</p>
-            <p><b>Machine:</b> {machine}</p>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Security Audit Report</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body {{
+                font-family: 'Segoe UI', Arial, sans-serif;
+                background: #f4f6f8;
+                margin: 0;
+                padding: 0;
+            }}
+            .container {{
+                width: 90%;
+                max-width: 1200px;
+                margin: 30px auto;
+                background: #fff;
+                padding: 25px 40px;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            }}
+            h1 {{
+                text-align: center;
+                color: #222;
+                margin-bottom: 10px;
+            }}
+            .info {{
+                display: flex;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                margin-top: 10px;
+            }}
+            .info p {{
+                margin: 5px 0;
+                font-size: 15px;
+            }}
+            .score {{
+                text-align: center;
+                margin-top: 20px;
+            }}
+            .score h2 {{
+                font-size: 2.5em;
+                color: {badge_color};
+                margin: 0;
+            }}
+            .badge {{
+                display: inline-block;
+                background: {badge_color};
+                color: #fff;
+                padding: 8px 14px;
+                border-radius: 10px;
+                font-weight: bold;
+                margin-top: 5px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 30px;
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            th, td {{
+                padding: 12px 15px;
+                text-align: left;
+            }}
+            th {{
+                background: linear-gradient(90deg, #263238, #37474f);
+                color: #fff;
+                position: sticky;
+                top: 0;
+            }}
+            tr:hover {{
+                background-color: #f1f8e9;
+                transition: 0.3s;
+            }}
+            .PASS {{
+                background-color: #c8e6c9;
+            }}
+            .FAIL {{
+                background-color: #ffcdd2;
+            }}
+            footer {{
+                text-align: center;
+                margin-top: 40px;
+                color: #777;
+                font-size: 0.9em;
+            }}
+            canvas {{
+                display: block;
+                margin: 25px auto;
+                max-width: 260px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🛡️ System Security Audit Report</h1>
+
+            <div class="info">
+                <div>
+                    <p><b>Hostname:</b> {host}</p>
+                    <p><b>Machine:</b> {machine}</p>
+                    <p><b>Timestamp:</b> {timestamp}</p>
+                </div>
+                <div class="score">
+                    <h2>{score}%</h2>
+                    <div class="badge">{level}</div>
+                </div>
+            </div>
+
+            <canvas id="scoreChart"></canvas>
+
             <table>
                 <thead>
                     <tr>
@@ -53,23 +145,57 @@ def generate_html_report(result, host, timestamp, machine):
     """
 
     for r in result:
+        status = r["status"]
+        if status == True:
+            status = "PASS"
+        elif status == False:
+            status = "FAIL"
         html += f"""
-                <tr class="{r['status']}">
-                    <td>{r['name']}</td>
-                    <td>{r['status']}</td>
-                    <td>{r['expected']}</td>
-                    <td>{r['actual_value']}</td>
-                </tr>
+            <tr class="{status}">
+                <td>{r['name']}</td>
+                <td><b>{status}</b></td>
+                <td>{r['expected']}</td>
+                <td>{r['actual_value']}</td>
+            </tr>
         """
 
-    html += """
-            </tbody>
+    html += f"""
+                </tbody>
             </table>
-        </body>
-        </html>
+
+            <footer>
+                <p>Generated by <b>Automated Security Configuration Auditor</b> — © 2025</p>
+            </footer>
+        </div>
+
+        <script>
+        var ctx = document.getElementById('scoreChart');
+        new Chart(ctx, {{
+            type: 'doughnut',
+            data: {{
+                labels: ['PASS', 'FAIL'],
+                datasets: [{{
+                    data: [{passed}, {failed}],
+                    backgroundColor: ['#4CAF50', '#E57373']
+                }}]
+            }},
+            options: {{
+                plugins: {{
+                    legend: {{ position: 'bottom' }},
+                    title: {{
+                        display: true,
+                        text: 'Compliance Distribution'
+                    }}
+                }}
+            }}
+        }});
+        </script>
+    </body>
+    </html>
     """
 
-    with open('security_audit_report.html', 'w') as f:
+    with open("security_audit_report.html", "w") as f:
         f.write(html)
 
-    print("✅ HTML report generated: security_audit_report.html")
+    webbrowser.open("security_audit_report.html")
+    print("✅ Enhanced HTML report generated with compliance score, chart, and badge!")

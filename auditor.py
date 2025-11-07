@@ -32,9 +32,8 @@ def check_config(search_string, file_path, expected_comparison, operator):
                 return numeric_value == expected_comparison, numeric_value
             else:
                 return False, f"Unknown operator: {operator}"
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 1:
-                raise RuntimeError(f"{search_string} not found in {file_path}.")
+        except ValueError:
+            return False, f"Non-numeric value found for {search_string}: {config_value}"
 
     except FileNotFoundError:
         return False, f"{file_path} not found."
@@ -104,11 +103,14 @@ if __name__ == "__main__":
         status = "✅ PASS" if r["status"]=="PASS" else "❌ FAIL"
         print(f"{r['name']:<30} {status} (Actual: {r['actual_value']}, Expected: {r['expected']})")
 
-    pass_cnt = sum(1 for r in result if r["status"] == True)
-    fail_cnt = sum(1 for r in result if r["status"] == False)
-
+    pass_cnt = sum(1 for r in result if r["status"] == "PASS")
+    fail_cnt = sum(1 for r in result if r["status"] == "FAIL")
+    total_checks = len(result)
+    compliance_score = (pass_cnt / total_checks) * 100 if total_checks > 0 else 0
     print("="*50)
-    print(f"SUMMARY: {pass_cnt} Passed, {fail_cnt} Failed\n")
+    print(f"SUMMARY: {pass_cnt} Passed, {fail_cnt} Failed")
+    print(f"COMPLIANCE SCORE: {compliance_score:.1f}%")
+    print("="*50)
 
     # Generate HTML report
     with open("security_audit_report.json","r") as f:
