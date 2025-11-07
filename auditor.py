@@ -1,4 +1,5 @@
 import subprocess,json,socket,datetime
+from templates.report_template import generate_html_report
 
 def check_file_permissions(file_path,expected_permissions):
     """Check the permissions of a file with better error handling."""
@@ -80,7 +81,7 @@ def run_security_checks():
             )
         results.append({
             "name":check["name"],
-            "status":status,
+            "status":"PASS" if status else "FAIL",
             "expected":check["expected"],
             "actual_value":value,
         })
@@ -92,7 +93,6 @@ def run_security_checks():
         "Machine": subprocess.run(["grep", "^NAME=", "/etc/os-release"], capture_output=True, text=True).stdout.split("=")[1].strip().strip('"'),
         "result": results
     }
-
     with open("security_audit_report.json","w") as f:
         json.dump(report_metadata,f,indent=2)
 
@@ -101,7 +101,7 @@ def run_security_checks():
 if __name__ == "__main__":
     result = run_security_checks()
     for r in result:
-        status = "✅ PASS" if r["status"] else "❌ FAIL"
+        status = "✅ PASS" if r["status"]=="PASS" else "❌ FAIL"
         print(f"{r['name']:<30} {status} (Actual: {r['actual_value']}, Expected: {r['expected']})")
 
     pass_cnt = sum(1 for r in result if r["status"] == True)
@@ -109,3 +109,9 @@ if __name__ == "__main__":
 
     print("="*50)
     print(f"SUMMARY: {pass_cnt} Passed, {fail_cnt} Failed\n")
+
+    # Generate HTML report
+    with open("security_audit_report.json","r") as f:
+        report_data = json.load(f)
+
+    generate_html_report(report_data['result'],report_data['host'],report_data['timestamp'],report_data['Machine'])
