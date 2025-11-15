@@ -1,6 +1,6 @@
 import json, webbrowser
 
-def generate_html_report(result, host, timestamp, machine):
+def generate_html_report(result, host, timestamp, machine,ip=None):
     total = len(result)
     passed = sum(1 for r in result if r["status"] == "PASS" or r["status"] == True)
     failed = total - passed
@@ -121,6 +121,7 @@ def generate_html_report(result, host, timestamp, machine):
             <div class="info">
                 <div>
                     <p><b>Hostname:</b> {host}</p>
+                    <p><b>Ip:</b> {ip}</p>
                     <p><b>Machine:</b> {machine}</p>
                     <p><b>Timestamp:</b> {timestamp}</p>
                 </div>
