@@ -192,7 +192,6 @@ python3 /app/auditor.py
 ## 🏗️ Project Architecture
 
 ````markdown
-```
 security-auditor/
 ├── auditor.py                      # Main scanner with SSH support (Level 2)
 ├── templates/
@@ -204,7 +203,6 @@ security-auditor/
 ├── LICENSE                         # MIT License
 ├── security_audit_report.json     # Generated report (JSON)
 └── security_audit_report.html     # Generated report (HTML)
-```
 ````
 
 
@@ -255,7 +253,6 @@ CHECKS = [
 # ... existing checks ...
 
 ````markdown
-```
 # New check example: Firewall status
 {
     "name": "Firewall Enabled",
@@ -267,7 +264,6 @@ CHECKS = [
 }
 ]
 docker run -d --name target-server
-```
 ````
 
 **Step 2:** Test the check:
@@ -299,6 +295,7 @@ The generated HTML report includes:
 - 📋 **Detailed Findings Table** - Sortable table with color-coded status
 - 🕒 **Metadata Section** - Scan timestamp, target host, OS information
 
+```
 **Example Screenshot:**
 ╔════════════════════════════════════════╗
 ║ Security Audit Report ║
@@ -315,7 +312,7 @@ The generated HTML report includes:
 ║ SSH MaxAuthTries ❌ FAIL 6 ║
 ║ ... ║
 ╚════════════════════════════════════════╝
-
+```
 
 ---
 
@@ -482,8 +479,8 @@ If you discover security vulnerabilities in this tool:
 **Email:** your-email@example.com
 
 ### Getting Help
-- 🐛 **Bug reports:** [Open an issue](https://github.com/yourusername/security-auditor/issues)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/yourusername/security-auditor/discussions)
+- 🐛 **Bug reports:** [Open an issue](https://github.com/divyansh369/security-auditor/issues)
+- 💬 **Discussions:** [GitHub Discussions](https://github.com/divyansh369/security-auditor/discussions)
 - 📧 **Direct contact:** For security issues or private inquiries
 
 ---
@@ -518,3 +515,4 @@ If you discover security vulnerabilities in this tool:
 **Current Version:** 2.0 (Level 2 Complete)  
 
 **Status:** ✅ Production-Ready for Single Remote Host Scanning
+
