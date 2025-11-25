@@ -1,5 +1,7 @@
-import subprocess,json,socket,datetime
+import subprocess,json,socket,datetime,os
 from templates.report_template import generate_html_report
+
+report_folder = "Reports"
 
 def check_file_permissions(file_path,expected_permissions):
     """Check the permissions of a file with better error handling."""
@@ -92,7 +94,8 @@ def run_security_checks():
         "Machine": subprocess.run(["grep", "^NAME=", "/etc/os-release"], capture_output=True, text=True).stdout.split("=")[1].strip().strip('"'),
         "result": results
     }
-    with open("security_audit_report.json","w") as f:
+    full_path = os.path.join(report_folder, 'security_audit_report.json')   
+    with open(full_path,"w") as f:
         json.dump(report_metadata,f,indent=2)
 
     return results

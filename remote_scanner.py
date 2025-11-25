@@ -1,17 +1,15 @@
 import os
 import json
 import datetime
+import pathlib
 import socket
 import paramiko
 import dotenv
 import shlex
 from templates.report_template import generate_html_report
+from Utils import rotate_reports
 
-dotenv.load_dotenv()
-
-Hostname = os.environ.get("Hostname")
-username = os.environ.get("username")
-password = os.environ.get("password")
+report_folder = "Reports"
 
 def run_command(client:paramiko.SSHClient, cmd:str,timeout:int=10):
     """
@@ -33,19 +31,19 @@ def is_safe_token(t: str):
     forbidden = [';', '&', '|', '`', '$(', '$', '>', '<']
     return all(ch not in t for ch in forbidden)
 
-def test_ssh_connection():
+def test_ssh_connection(hostname, username, password):
     try:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(Hostname, 22, username, password)
+        client.connect(hostname, 22, username, password)
 
         # Connect
-        print(f"Connecting to {Hostname}...")
+        print(f"Connecting to {hostname}...")
         
         stdin,stdout,stderr = client.exec_command("whoami")
         output = stdout.read().decode().strip()
         print(f"Command Output: {output}")
-        print("\n========= ✅SSH Connection Successful =============\n")
+        print(f"\n========= ✅SSH Connection Successful {hostname} =============\n")
         return client
         
     except Exception as e:
@@ -165,36 +163,48 @@ def run_security_checks(client):
         "result": results,
         "ip": client.exec_command('hostname -I')[1].read().decode().strip()
     }
-    with open("security_audit_report.json","w") as f:
+    
+    filename = f"security_audit_report_{report_metadata['ip'].replace('.','_')}.json"
+    file_path = pathlib.Path(report_folder)/filename
+    with open(file_path,"w") as f:
         json.dump(report_metadata,f,indent=2)
-
+    
     return results
 
 if __name__=="__main__":
-    client = test_ssh_connection()
+    
+    rotate_reports()
+ 
+    try:
+        with open('hosts.json','r') as f:
+            machines = json.load(f)
+            for machine in machines:
+                hostname = machine.get('Hostname')
+                username = machine.get('username')
+                password = machine.get('password')
+                
+                client = test_ssh_connection(hostname, username, password)
 
-    if client:
-        result = run_security_checks(client)
-        for r in result:
-            status = "✅ PASS" if r["status"]=="PASS" else "❌ FAIL"
-            print(f"{r['name']:<30} {status} (Actual: {r['actual_value']}, Expected: {r['expected']})")
+                if client:
+                    result = run_security_checks(client)
+                    for r in result:
+                        status = "✅ PASS" if r["status"]=="PASS" else "❌ FAIL"
+                        print(f"{r['name']:<30} {status} (Actual: {r['actual_value']}, Expected: {r['expected']})")
 
-        pass_cnt = sum(1 for r in result if r["status"] == "PASS")
-        fail_cnt = sum(1 for r in result if r["status"] == "FAIL")
-        total_checks = len(result)
-        compliance_score = (pass_cnt / total_checks) * 100 if total_checks > 0 else 0
-        print("="*50)
-        print(f"SUMMARY: {pass_cnt} Passed, {fail_cnt} Failed")
-        print(f"COMPLIANCE SCORE: {compliance_score:.1f}%")
-        print("="*50)
+                    pass_cnt = sum(1 for r in result if r["status"] == "PASS")
+                    fail_cnt = sum(1 for r in result if r["status"] == "FAIL")
+                    total_checks = len(result)
+                    compliance_score = (pass_cnt / total_checks) * 100 if total_checks > 0 else 0
+                    print("="*50)
+                    print(f"SUMMARY: {pass_cnt} Passed, {fail_cnt} Failed")
+                    print(f"COMPLIANCE SCORE: {compliance_score:.1f}%")
+                    print("="*50)
 
-        # Generate HTML report
-        with open("security_audit_report.json","r") as f:
-            report_data = json.load(f)
+                    transport = client.get_transport()
+                    if transport and transport.is_active():
+                        client.close()
+                        print("\n✅ SSH connection closed.")
 
-        generate_html_report(report_data['result'],report_data['host'],report_data['timestamp'],report_data['Machine'],report_data['ip'])
-        
-        transport = client.get_transport()
-        if transport and transport.is_active():
-            client.close()
-            print("\n✅ SSH connection closed.")
+    except Exception as e:
+        print(f"Failed to load machines.json: {e}")
+        machines = []
